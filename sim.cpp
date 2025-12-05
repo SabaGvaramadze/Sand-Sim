@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <chrono>
 #include <cstdlib>
+#include <thread>
 
 using namespace std;
 
@@ -184,11 +185,16 @@ void sim_tick(char* map,bool* active_map,bool* active_map_buffer,const int chunk
 	copy_active_map_from_buffer(active_map,active_map_buffer,chunk_size,map_height,map_width);
 	reset_active_map_buffer(active_map_buffer,chunk_size,map_width,map_height);
 	for(unsigned int i=0;i<map_height/chunk_size;i++){
+		thread *threads = new thread[map_width/chunk_size];
 		for(unsigned int j=0;j<map_width/chunk_size;j++){
 			if(*(active_map+i*map_width/chunk_size+j)){
-				simulate_chunk(map,active_map_buffer,j,i,chunk_size,map_width,map_height);
+				threads[j] = thread(simulate_chunk,map,active_map_buffer,j,i,chunk_size,map_width,map_height);
 			}
 		}
+		for(unsigned int j=0;j<map_width/chunk_size;j++){
+			if(threads[j].joinable())threads[j].join();
+		}
+		delete[] threads;
 	}
 }
 
