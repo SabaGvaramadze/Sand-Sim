@@ -1,8 +1,8 @@
 #include <iostream>
 #include <SDL2/SDL.h>
-#include <windows.h>
 #include <unistd.h>
 #include <chrono>
+#include <cstdlib>
 
 using namespace std;
 
@@ -18,36 +18,37 @@ int main(int argc, char **argv){
 	const int default_chunk_size = 1;
 	int width,height,chunk_size;
 	if(argc==3){
-	try{
-		width = stoi(argv[1]);
-		height = stoi(argv[2]);
-	}
-	catch(invalid_argument& e){
-		cout << "INVALID WIDTH OR HEIGHT" << endl;
-		return -1;
-	}
-	catch(out_of_range& e){
-		cout << "WIDHT OR HEIGHT OUT OF RANGE" << endl;
-		return -1;
-	}
-	chunk_size = default_chunk_size;
-	cout << "DEFAULT CHUNK SIZE ASSUMED: " << default_chunk_size << endl;
+		try{
+			width = stoi(argv[1]);
+			height = stoi(argv[2]);
+		}
+		catch(invalid_argument& e){
+			cout << "INVALID WIDTH OR HEIGHT" << endl;
+			return -1;
+		}
+		catch(out_of_range& e){
+			cout << "WIDHT OR HEIGHT OUT OF RANGE" << endl;
+			return -1;
+		}
+		chunk_size = default_chunk_size;
+		cout << "DEFAULT CHUNK SIZE ASSUMED: " << default_chunk_size << endl;
 	}
 	else if(argc==4){
-	try{
-		width = stoi(argv[1]);
-		height = stoi(argv[2]);
-		chunk_size = stoi(argv[3]);
+		try{
+			width = stoi(argv[1]);
+			height = stoi(argv[2]);
+			chunk_size = stoi(argv[3]);
+		}
+		catch(invalid_argument& e){
+			cout << "INVALID WIDTH, HEIGHT OR DIVISOR" << endl;
+			return -1;
+		}
+		catch(out_of_range& e){
+			cout << "WIDHT,HEIGHT OR CHUNK SIZE OUT OF RANGE" << endl;
+			return -1;
+		}
 	}
-	catch(invalid_argument& e){
-		cout << "INVALID WIDTH, HEIGHT OR DIVISOR" << endl;
-		return -1;
-	}
-	catch(out_of_range& e){
-		cout << "WIDHT,HEIGHT OR CHUNK SIZE OUT OF RANGE" << endl;
-		return -1;
-	}
-	}
+	srand(time(0));
 	char* map = (char*)malloc(width*height);
 	bool* active_map= (bool*)malloc((width/chunk_size)*(height/chunk_size));
 	bool* active_map_buffer= (bool*)malloc((width/chunk_size)*(height/chunk_size));
@@ -79,11 +80,8 @@ int main(int argc, char **argv){
 	chrono::time_point<chrono::high_resolution_clock,chrono::nanoseconds> fps_clock;
 	chrono::duration<double> diff;
 	while(!close){
-		system("cls");
-		cout << 0 << endl;
 		fps_clock = chrono::high_resolution_clock::now();
 		SDL_Event event;
-		cout << 1 << endl;
 		while(SDL_PollEvent(&event)){
 			switch(event.type){
 				case SDL_QUIT:
@@ -92,7 +90,6 @@ int main(int argc, char **argv){
 			}
 		}
 		int x,y;
-		cout << 'a' << endl;
 		if(SDL_GetMouseState(&x,&y) & SDL_BUTTON_LMASK){
 			if(x<width-1 && y<height-1 && x>1 && y>1){
 				char* point = map+y*width+x;
@@ -106,7 +103,6 @@ int main(int argc, char **argv){
 				*(point+width+1) = 1;
 				*(point+width-1) = 1;
 				*(active_map_buffer+((int)(y/chunk_size)*width+x)/chunk_size)=1;
-				//cout << "x: " << x << ' ' << "y: " << y << endl;
 			}
 		}
 		else if(SDL_GetMouseState(&x,&y) & SDL_BUTTON_RMASK){
@@ -123,14 +119,12 @@ int main(int argc, char **argv){
 				*(point+width-1) = 2;
 			}
 		}
-		cout << "b" << endl;
 		sim_tick(map,active_map,active_map_buffer,chunk_size,width,height);
 		SDL_LockSurface(screen_surface);
 		map_to_surface(map,screen_surface,active_map,chunk_size,width,height);
 		SDL_UnlockSurface(screen_surface);
 		
 		SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer,screen_surface);
-		cout << "c" << endl;
 		SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer,tex,NULL,&rect);
 		SDL_RenderPresent(renderer);
@@ -143,7 +137,6 @@ int main(int argc, char **argv){
 		//Sleep(sleep_time*1000);
 		diff = chrono::high_resolution_clock::now()-fps_clock;
 		fps = 1/diff.count();
-		cout << "d" << endl;
 	}
 	SDL_DestroyRenderer(renderer);
 	SDL_FreeSurface(screen_surface);
@@ -201,7 +194,7 @@ void sim_tick(char* map,bool* active_map,bool* active_map_buffer,const int chunk
 
 void simulate_chunk(char* map,bool* active_map_buffer,int x,int y,const int chunk_size,const int map_width,const int map_height){
 	int xlimit = min((x+1)*chunk_size,map_width-1),ylimit = min((y+1)*chunk_size,map_height-1);
-	for(int i=y*chunk_size;i<ylimit;i++){
+	for(int i=y*chunk_size;i<=ylimit && x != map_height/chunk_size;i++){
 		for(int j=x*chunk_size;j<xlimit;j++){
 			char* point = map+i*map_width+j;
 			if(*point == 1){
@@ -210,18 +203,93 @@ void simulate_chunk(char* map,bool* active_map_buffer,int x,int y,const int chun
 					*point = 0;
 					*(point+map_width) = 1;
 					*(active_map_buffer+i/chunk_size*map_width/chunk_size+map_width/chunk_size +j/chunk_size)=1;
+					if(i%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+j/chunk_size) = 1;
+					}
+					if(j%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+					}
 				}
 				else if( *(point_below+1)== 0 && *(point+1)==0){
 					*point = 0;
 					*(point+map_width*2+1) = 1;
 					*(active_map_buffer+i/chunk_size*map_width/chunk_size+(j+1)/chunk_size)=1;
+					if(i%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+j/chunk_size) = 1;
+					}
+					if(j%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+					}
 					
 				}
 				else if(*(point_below-1) == 0&& *(point-1)==0){
 					*point = 0;
 					*(point+map_width*2-1) = 1;
 					*(active_map_buffer+i/chunk_size*map_width/chunk_size+(j-1)/chunk_size)=1;
+					if(i%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+j/chunk_size) = 1;
+					}
+					if(j%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+					}
+				}
+			}
+		}
+		for(int j=xlimit-1;j>=xlimit-chunk_size;j--){
+			char* point = map+i*map_width+j;
+			if(*point == 1){
+				char* point_below = point+map_width*2;
+				if(*(point+map_width) == 0){
+					*point = 0;
+					*(point+map_width) = 1;
+					*(active_map_buffer+i/chunk_size*map_width/chunk_size+map_width/chunk_size +j/chunk_size)=1;
+					if(i%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+j/chunk_size) = 1;
+					}
+					if(j%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+					}
+				}
+				else if( *(point_below+1)== 0 && *(point+1)==0){
+					*point = 0;
+					*(point+map_width*2+1) = 1;
+					*(active_map_buffer+i/chunk_size*map_width/chunk_size+(j+1)/chunk_size)=1;
+					if(i%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+j/chunk_size) = 1;
+					}
+					if(j%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+					}
 					
+				}
+				else if(*(point_below-1) == 0&& *(point-1)==0){
+					*point = 0;
+					*(point+map_width*2-1) = 1;
+					*(active_map_buffer+i/chunk_size*map_width/chunk_size+(j-1)/chunk_size)=1;
+					if(i%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+j/chunk_size) = 1;
+					}
+					if(j%chunk_size == 0){
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i-1)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j-1)/chunk_size) = 1;
+						*(active_map_buffer+(i)/chunk_size*map_width/chunk_size+(j+1)/chunk_size) = 1;
+					}
 				}
 			}
 		}

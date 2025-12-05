@@ -1,7 +1,7 @@
 CC = g++
 FLAGS = -Wall -g
-LIBS =	-lmingw32 -lSDL2main -lSDL2 
+LIBS = -lSDL2main -lSDL2 
 
 sim.exe : sim.cpp
 	$(CC) sim.cpp -c -o sim.o $(FLAGS)
-	$(CC) sim.o -o sim.exe $(FLAGS) $(LIBS)
+	$(CC) sim.o -o sim $(FLAGS) $(LIBS)
